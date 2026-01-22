@@ -8,9 +8,7 @@ const DEFAULT_ROOM_CODE = 'MAJIANG';
 
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', () => {
-    // 确保默认房间存在
-    initDefaultRoom();
-    // 加载已提交的时间
+    // 直接加载已提交的时间（不再需要初始化房间）
     loadTimes();
     // 自动刷新（每5秒）
     setInterval(() => {
@@ -18,27 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
         loadCommonTimes();
     }, 5000);
 });
-
-// 初始化默认房间
-async function initDefaultRoom() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/check-room/${DEFAULT_ROOM_CODE}`);
-        const data = await response.json();
-        
-        if (data.success && !data.exists) {
-            // 如果房间不存在，创建它
-            await fetch(`${API_BASE_URL}/create-room`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ room_code: DEFAULT_ROOM_CODE })
-            });
-        }
-    } catch (error) {
-        console.error('初始化房间失败:', error);
-    }
-}
 
 // 提交时间表单
 document.getElementById('timeForm').addEventListener('submit', async (e) => {

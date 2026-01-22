@@ -18,16 +18,7 @@ def init_db():
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
     
-    # 创建房间表
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS rooms (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            room_code TEXT UNIQUE NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # 创建时间表
+    # 创建时间表（不再需要 rooms 表）
     c.execute('''
         CREATE TABLE IF NOT EXISTS time_slots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,8 +27,7 @@ def init_db():
             date TEXT NOT NULL,
             start_time TEXT NOT NULL,
             end_time TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (room_code) REFERENCES rooms(room_code)
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     
@@ -56,55 +46,21 @@ def generate_room_code():
 
 @app.route('/api/create-room', methods=['POST'])
 def create_room():
-    """创建房间"""
+    """创建房间（已废弃，不再需要房间，但保留 API 以兼容）"""
     try:
         data = request.json or {}
-        room_code = data.get('room_code')
-        
-        conn = get_db_connection()
-        c = conn.cursor()
-        
-        # 如果指定了房间号
-        if room_code:
-            # 检查房间是否已存在
-            c.execute('SELECT * FROM rooms WHERE room_code = ?', (room_code,))
-            if c.fetchone():
-                conn.close()
-                return jsonify({'success': True, 'room_code': room_code, 'exists': True}), 200
-            # 创建指定房间号
-            c.execute('INSERT INTO rooms (room_code) VALUES (?)', (room_code,))
-        else:
-            # 如果没有指定房间号，则生成一个
-            room_code = generate_room_code()
-            # 确保房间号唯一
-            while True:
-                c.execute('SELECT * FROM rooms WHERE room_code = ?', (room_code,))
-                if c.fetchone() is None:
-                    break
-                room_code = generate_room_code()
-            c.execute('INSERT INTO rooms (room_code) VALUES (?)', (room_code,))
-        
-        conn.commit()
-        conn.close()
-        
+        room_code = data.get('room_code', 'MAJIANG')
+        # 不再实际创建房间，直接返回成功
         return jsonify({'success': True, 'room_code': room_code}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/check-room/<room_code>', methods=['GET'])
 def check_room(room_code):
-    """检查房间是否存在"""
+    """检查房间是否存在（已废弃，不再需要房间，但保留 API 以兼容）"""
     try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        c.execute('SELECT * FROM rooms WHERE room_code = ?', (room_code,))
-        room = c.fetchone()
-        conn.close()
-        
-        if room:
-            return jsonify({'success': True, 'exists': True}), 200
-        else:
-            return jsonify({'success': True, 'exists': False}), 200
+        # 不再检查房间，直接返回存在
+        return jsonify({'success': True, 'exists': True}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -113,25 +69,19 @@ def submit_time():
     """提交时间"""
     try:
         data = request.json
-        room_code = data.get('room_code')
+        room_code = data.get('room_code', 'MAJIANG')  # 默认使用 MAJIANG，但不再检查房间
         nickname = data.get('nickname')
         date = data.get('date')
         start_time = data.get('start_time')
         end_time = data.get('end_time')
         
         # 验证数据
-        if not all([room_code, nickname, date, start_time, end_time]):
+        if not all([nickname, date, start_time, end_time]):
             return jsonify({'success': False, 'error': '缺少必要参数'}), 400
         
-        # 检查房间是否存在
+        # 直接插入时间数据（不再检查房间）
         conn = get_db_connection()
         c = conn.cursor()
-        c.execute('SELECT * FROM rooms WHERE room_code = ?', (room_code,))
-        if not c.fetchone():
-            conn.close()
-            return jsonify({'success': False, 'error': '房间不存在'}), 404
-        
-        # 插入时间数据
         c.execute('''
             INSERT INTO time_slots (room_code, nickname, date, start_time, end_time)
             VALUES (?, ?, ?, ?, ?)
@@ -274,28 +224,17 @@ if __name__ == '__main__':
     # 初始化数据库
     init_db()
     
-    # 确保默认房间存在
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    c.execute('SELECT * FROM rooms WHERE room_code = ?', ('MAJIANG',))
-    if not c.fetchone():
-        c.execute('INSERT INTO rooms (room_code) VALUES (?)', ('MAJIANG',))
-        conn.commit()
-    conn.close()
-    
     print("=" * 50)
     print("麻将时间协调系统 - 后端服务")
     print("=" * 50)
     print("前端页面: http://localhost:5000")
     print("服务地址: http://localhost:5000")
     print("API 文档:")
-    print("  POST /api/create-room - 创建房间")
-    print("  GET  /api/check-room/<room_code> - 检查房间")
     print("  POST /api/submit-time - 提交时间")
     print("  GET  /api/get-times/<room_code> - 获取时间列表")
     print("  GET  /api/get-common-times/<room_code> - 获取共同空闲时间")
     print("=" * 50)
-    print("默认房间号: MAJIANG")
+    print("默认房间号: MAJIANG（仅用于数据分组，无需创建房间）")
     print("=" * 50)
     print("请在浏览器中访问: http://localhost:5000")
     print("=" * 50)

@@ -34,6 +34,9 @@ def init_db():
     conn.commit()
     conn.close()
 
+# 在应用启动时初始化数据库（确保在使用 gunicorn 时也能初始化）
+init_db()
+
 def get_db_connection():
     """获取数据库连接"""
     conn = sqlite3.connect(DATABASE)
@@ -220,9 +223,10 @@ def serve_static(path):
     """提供前端静态文件（CSS、JS等）"""
     return send_from_directory('../frontend', path)
 
+# 数据库已在模块加载时初始化（第38行），无需再次初始化
+
 if __name__ == '__main__':
-    # 初始化数据库
-    init_db()
+    # 数据库已在应用启动时初始化，这里不需要再次初始化
     
     print("=" * 50)
     print("麻将时间协调系统 - 后端服务")

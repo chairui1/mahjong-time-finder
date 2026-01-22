@@ -9,11 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制应用代码
 COPY . .
 
-# 设置工作目录到 backend
-WORKDIR /app/backend
-
 # 暴露端口
 EXPOSE $PORT
 
-# 启动应用
-CMD gunicorn app:app --bind 0.0.0.0:$PORT
+# 启动应用（从根目录运行，使用模块路径）
+CMD gunicorn backend.app:app --bind 0.0.0.0:$PORT

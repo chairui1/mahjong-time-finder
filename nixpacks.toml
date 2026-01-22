@@ -2,10 +2,7 @@
 nixPkgs = ["python311"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
-
-[phases.build]
-cmds = []
+cmds = ["python3 -m pip install --upgrade pip", "python3 -m pip install -r requirements.txt"]
 
 [start]
-cmd = "cd backend && gunicorn app:app --bind 0.0.0.0:$PORT"
+cmd = "gunicorn backend.app:app --bind 0.0.0.0:$PORT --chdir backend"

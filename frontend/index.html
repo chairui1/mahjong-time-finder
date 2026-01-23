@@ -9,26 +9,36 @@
 <body>
     <div class="container">
         <h1>🀄 麻将时间协调</h1>
+
+        <!-- 身份选择 -->
+        <div class="section" id="identitySection">
+            <h2>选择我的身份</h2>
+            <p class="identity-note">我们固定有 4 位牌友，请选择你对应的编号。浏览器会记住你的选择，下次打开不用再选。</p>
+            <div class="identity-buttons">
+                <button class="identity-button" data-player-id="player1">玩家 1</button>
+                <button class="identity-button" data-player-id="player2">玩家 2</button>
+                <button class="identity-button" data-player-id="player3">玩家 3</button>
+                <button class="identity-button" data-player-id="player4">玩家 4</button>
+            </div>
+        </div>
         
         <!-- 提交时间表单 -->
-        <div class="section">
+        <div class="section" id="timeSection" style="display: none;">
             <h2>提交我的空闲时间</h2>
+            <p class="current-player">当前身份：<span id="currentNicknameDisplay" class="current-player-name">未选择</span></p>
             <form id="timeForm">
-                <div class="form-group">
-                    <label>昵称：</label>
-                    <input type="text" id="nickname" required placeholder="请输入您的昵称">
-                </div>
                 <div class="form-group">
                     <label>日期：</label>
                     <input type="date" id="date" required>
                 </div>
                 <div class="form-group">
-                    <label>开始时间：</label>
-                    <input type="time" id="startTime" required>
-                </div>
-                <div class="form-group">
-                    <label>结束时间：</label>
-                    <input type="time" id="endTime" required>
+                    <label>时间段：</label>
+                    <div class="time-slot-grid">
+                        <div class="time-slot" data-segment="morning">上午</div>
+                        <div class="time-slot" data-segment="noon">中午</div>
+                        <div class="time-slot" data-segment="afternoon">下午</div>
+                        <div class="time-slot" data-segment="evening">晚上</div>
+                    </div>
                 </div>
                 <button type="submit">提交时间</button>
             </form>

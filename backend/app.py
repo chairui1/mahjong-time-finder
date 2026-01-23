@@ -15,7 +15,7 @@ DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mahjong_tim
 
 DEFAULT_ROOM_CODE = "MAJIANG"
 SEGMENTS = ["morning", "noon", "afternoon", "evening"]
-PLAYER_LABELS = ["玩家 1", "玩家 2", "玩家 3", "玩家 4"]
+PLAYER_LABELS = ["chairui1", "程立儿子", "R", "花田乌龙"]
 
 def init_db():
     """初始化数据库"""

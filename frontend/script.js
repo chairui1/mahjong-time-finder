@@ -8,10 +8,10 @@ const DEFAULT_ROOM_CODE = 'MAJIANG';
 
 // 预设 4 个固定玩家
 const PLAYER_CONFIG = [
-    { id: 'player1', label: '玩家 1', colorClass: 'player-1' },
-    { id: 'player2', label: '玩家 2', colorClass: 'player-2' },
-    { id: 'player3', label: '玩家 3', colorClass: 'player-3' },
-    { id: 'player4', label: '玩家 4', colorClass: 'player-4' },
+    { id: 'player1', label: 'chairui1',    colorClass: 'player-1' },
+    { id: 'player2', label: '程立儿子',   colorClass: 'player-2' },
+    { id: 'player3', label: 'R',          colorClass: 'player-3' },
+    { id: 'player4', label: '花田乌龙',   colorClass: 'player-4' },
 ];
 
 // 时间段（固定四段；晚上按你的需求：20:00-24:00，仅用于展示/列表）
@@ -213,12 +213,8 @@ async function fetchAndRenderMonth(monthGridEl, monthTitleEl) {
             monthAvailability[e.nickname][e.date][e.segment] = e.available;
         }
 
-        for (const c of (data.common || [])) {
-            monthCommon.add(`${c.date}|${c.segment}`);
-        }
-
         renderMonthGrid(monthGridEl);
-        renderCommonList();
+        recomputeAndRenderCommon();
     } catch (e) {
         console.error(e);
         if (monthGridEl) {
@@ -384,19 +380,88 @@ async function flushPendingChanges() {
             throw new Error(data.error || '保存失败');
         }
 
-        // 保存成功后，刷新本月数据（更新共同空闲与他人点）
-        const monthTitle = document.getElementById('monthTitle');
-        const monthGrid = document.getElementById('monthGrid');
-        await fetchAndRenderMonth(monthGrid, monthTitle);
+        // 保存成功后，根据本地 monthAvailability 重新计算共同空闲并更新 UI，
+        // 不再整表重新拉取和重绘，避免页面跳到顶部。
+        recomputeAndRenderCommon();
     } catch (e) {
         console.error(e);
         alert(`保存失败：${e.message || e}`);
     }
 }
 
-function renderCommonList() {
+function recomputeAndRenderCommon() {
+    // 1. 根据 monthAvailability 重新计算 monthCommon
+    monthCommon = new Set();
+
+    // 计算本月“参与者”（至少在一个格子里有 available=1）
+    const activePlayers = [];
+    for (const p of PLAYER_CONFIG) {
+        const days = monthAvailability[p.label] || {};
+        let hasAny = false;
+        for (const d of Object.keys(days)) {
+            const segs = days[d];
+            for (const segKey of Object.keys(segs)) {
+                if (segs[segKey] === 1) {
+                    hasAny = true;
+                    break;
+                }
+            }
+            if (hasAny) break;
+        }
+        if (hasAny) activePlayers.push(p.label);
+    }
+
     const commonEl = document.getElementById('commonTimesList');
     if (!commonEl) return;
+
+    if (activePlayers.length === 0) {
+        monthCommon.clear();
+        commonEl.innerHTML = '<p>本月暂无共同空闲格子</p>';
+        // 清掉网格上的 common 样式
+        document.querySelectorAll('.slot-cell.common').forEach(el => el.classList.remove('common'));
+        return;
+    }
+
+    // 构建 (date, segment) -> set(nickname) 的可用映射
+    const availMap = new Map(); // key: "date|segment" -> Set(nickname)
+    for (const p of activePlayers) {
+        const days = monthAvailability[p] || {};
+        for (const d of Object.keys(days)) {
+            const segs = days[d];
+            for (const segKey of Object.keys(segs)) {
+                if (segs[segKey] !== 1) continue;
+                const k = `${d}|${segKey}`;
+                let s = availMap.get(k);
+                if (!s) {
+                    s = new Set();
+                    availMap.set(k, s);
+                }
+                s.add(p);
+            }
+        }
+    }
+
+    // 找出共同空闲：活跃玩家全部都在的格子
+    for (const [k, s] of availMap.entries()) {
+        if (activePlayers.every(p => s.has(p))) {
+            monthCommon.add(k);
+        }
+    }
+
+    // 2. 更新网格上的 common class
+    document.querySelectorAll('.slot-cell').forEach(cell => {
+        const d = cell.getAttribute('data-date');
+        const segKey = cell.getAttribute('data-segment');
+        if (!d || !segKey) return;
+        const key = `${d}|${segKey}`;
+        if (monthCommon.has(key)) {
+            cell.classList.add('common');
+        } else {
+            cell.classList.remove('common');
+        }
+    });
+
+    // 3. 更新下方“共同空闲时间（本月）”列表
     if (!monthCommon || monthCommon.size === 0) {
         commonEl.innerHTML = '<p>本月暂无共同空闲格子</p>';
         return;

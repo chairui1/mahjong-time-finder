@@ -14,21 +14,43 @@ const PLAYER_CONFIG = [
     { id: 'player4', label: '玩家 4', colorClass: 'player-4' },
 ];
 
-// 时间段与具体时间的映射
-const SEGMENT_TIME_MAP = {
-    morning:  { start: '08:00', end: '12:00' }, // 上午
-    noon:     { start: '12:00', end: '14:00' }, // 中午
-    afternoon:{ start: '14:00', end: '18:00' }, // 下午
-    evening:  { start: '18:00', end: '23:00' }, // 晚上
-};
+// 时间段（固定四段；晚上按你的需求：20:00-24:00，仅用于展示/列表）
+const SEGMENTS = [
+    { key: 'morning', label: '上午', start: '08:00', end: '12:00' },
+    { key: 'noon', label: '中午', start: '12:00', end: '14:00' },
+    { key: 'afternoon', label: '下午', start: '14:00', end: '18:00' },
+    { key: 'evening', label: '晚上', start: '20:00', end: '24:00' },
+];
 
 let currentNickname = null;
+let currentPlayerId = null;
+
+// 当前显示的月份（本地时区）
+let currentYear = null;
+let currentMonth = null; // 1-12
+
+// 本月数据缓存：availability[nickname][date][segment] = 0/1
+let monthAvailability = {};
+// 共同空闲集合：key = date|segment
+let monthCommon = new Set();
+
+// 拖拽涂色状态
+let isPainting = false;
+let paintValue = 1; // 1=设为可用，0=设为不可用
+
+// 批量保存缓冲
+let pendingChanges = new Map(); // key = date|segment -> available
+let flushTimer = null;
 
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', () => {
     const identityButtons = document.querySelectorAll('.identity-button');
     const timeSection = document.getElementById('timeSection');
     const currentNicknameDisplay = document.getElementById('currentNicknameDisplay');
+    const monthTitle = document.getElementById('monthTitle');
+    const monthGrid = document.getElementById('monthGrid');
+    const prevMonthBtn = document.getElementById('prevMonthBtn');
+    const nextMonthBtn = document.getElementById('nextMonthBtn');
 
     // 恢复本地已选择的身份
     try {
@@ -58,33 +80,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 时间段方块点击事件
-    const timeSlots = document.querySelectorAll('.time-slot');
-    timeSlots.forEach(slot => {
-        slot.addEventListener('click', () => {
-            slot.classList.toggle('selected');
-        });
+    // 初始化当前月份为“本月”
+    const now = new Date();
+    currentYear = now.getFullYear();
+    currentMonth = now.getMonth() + 1;
+
+    // 月份切换
+    prevMonthBtn.addEventListener('click', () => {
+        shiftMonth(-1);
+        renderMonthHeader(monthTitle);
+        fetchAndRenderMonth(monthGrid, monthTitle);
+    });
+    nextMonthBtn.addEventListener('click', () => {
+        shiftMonth(1);
+        renderMonthHeader(monthTitle);
+        fetchAndRenderMonth(monthGrid, monthTitle);
     });
 
-    // 提交时间表单（放到 DOMContentLoaded 里，避免拿到 null）
-    const timeForm = document.getElementById('timeForm');
-    if (timeForm) {
-        timeForm.addEventListener('submit', onSubmitTimeForm);
-    } else {
-        console.error('找不到 timeForm，无法绑定提交事件');
-    }
+    renderMonthHeader(monthTitle);
+    renderEmptyGrid(monthGrid); // 先渲染骨架，避免白屏
 
-    // 直接加载已提交的时间
-    loadTimes();
-    // 自动刷新（每5秒）
-    setInterval(() => {
-        loadTimes();
-        loadCommonTimes();
-    }, 5000);
+    // 如果已经选了身份（localStorage 恢复），则立即拉取本月数据
+    if (currentNickname) {
+        timeSection.style.display = 'block';
+        fetchAndRenderMonth(monthGrid, monthTitle);
+    }
 });
 
 function setCurrentPlayer(player, buttons, timeSection, displayEl) {
     currentNickname = player.label;
+    currentPlayerId = player.id;
     // 更新按钮样式
     buttons.forEach(b => b.classList.remove('selected'));
     const activeBtn = Array.from(buttons).find(b => b.getAttribute('data-player-id') === player.id);
@@ -93,142 +118,333 @@ function setCurrentPlayer(player, buttons, timeSection, displayEl) {
     displayEl.textContent = player.label;
     // 显示时间表单区域
     timeSection.style.display = 'block';
+
+    // 切换身份后立刻刷新本月数据（用于显示别人的点、共同空闲等）
+    const monthTitle = document.getElementById('monthTitle');
+    const monthGrid = document.getElementById('monthGrid');
+    renderMonthHeader(monthTitle);
+    fetchAndRenderMonth(monthGrid, monthTitle);
 }
 
-// 提交时间表单
-async function onSubmitTimeForm(e) {
-    e.preventDefault();
-    
-    if (!currentNickname) {
-        alert('请先在上面选择你的身份（玩家 1~4）。');
-        return;
+function shiftMonth(delta) {
+    let y = currentYear;
+    let m = currentMonth + delta;
+    if (m < 1) {
+        m = 12;
+        y -= 1;
+    } else if (m > 12) {
+        m = 1;
+        y += 1;
     }
-
-    const date = document.getElementById('date').value;
-    const selectedSegments = Array.from(document.querySelectorAll('.time-slot.selected'))
-        .map(el => el.getAttribute('data-segment'));
-    
-    if (!date) {
-        alert('请选择日期');
-        return;
-    }
-
-    if (selectedSegments.length === 0) {
-        alert('请至少选择一个时间段（上午 / 中午 / 下午 / 晚上）');
-        return;
-    }
-    
-    try {
-        // 依次提交每个时间段
-        for (const segment of selectedSegments) {
-            const mapping = SEGMENT_TIME_MAP[segment];
-            if (!mapping) continue;
-
-            const response = await fetch(`${API_BASE_URL}/submit-time`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    room_code: DEFAULT_ROOM_CODE,
-                    nickname: currentNickname,
-                    date: date,
-                    start_time: mapping.start,
-                    end_time: mapping.end
-                })
-            });
-            
-            const data = await response.json();
-            if (!data.success) {
-                throw new Error(data.error || '提交失败');
-            }
-        }
-
-        alert('时间提交成功！');
-        // 清除选中状态，但保留日期和身份
-        document.querySelectorAll('.time-slot.selected').forEach(el => el.classList.remove('selected'));
-        loadTimes();
-        loadCommonTimes();
-    } catch (error) {
-        console.error('提交时间失败:', error);
-        alert('提交失败，请检查后端服务是否运行');
-    }
+    currentYear = y;
+    currentMonth = m;
 }
 
-// 加载已提交的时间
-async function loadTimes() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/get-times/${DEFAULT_ROOM_CODE}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            displayTimes(data.times);
-            // 同时加载共同空闲时间
-            loadCommonTimes();
-        }
-    } catch (error) {
-        console.error('加载时间失败:', error);
-        document.getElementById('timesList').innerHTML = '<p class="error">无法连接到服务器，请确保后端服务正在运行</p>';
-    }
+function renderMonthHeader(monthTitleEl) {
+    if (!monthTitleEl) return;
+    monthTitleEl.textContent = `${currentYear} 年 ${String(currentMonth).padStart(2, '0')} 月`;
 }
 
-// 根据昵称获取颜色 class
-function getPlayerColorClass(nickname) {
-    const player = PLAYER_CONFIG.find(p => p.label === nickname);
-    return player ? player.colorClass : '';
+function daysInMonth(year, month) {
+    return new Date(year, month, 0).getDate(); // month: 1-12
 }
 
-// 显示已提交的时间
-function displayTimes(times) {
-    const timesList = document.getElementById('timesList');
-    
-    if (!times || times.length === 0) {
-        timesList.innerHTML = '<p>暂无提交的时间</p>';
-        return;
-    }
-    
-    timesList.innerHTML = times.map(time => {
-        const colorClass = getPlayerColorClass(time.nickname);
-        return `
-        <div class="time-item ${colorClass}">
-            <strong>${time.nickname}</strong> - ${time.date} ${time.start_time} ~ ${time.end_time}
-        </div>
+function formatDate(year, month, day) {
+    const mm = String(month).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    return `${year}-${mm}-${dd}`;
+}
+
+function getPlayerColorClassById(playerId) {
+    const p = PLAYER_CONFIG.find(x => x.id === playerId);
+    return p ? p.colorClass : '';
+}
+
+function getPlayerColorClassByLabel(label) {
+    const p = PLAYER_CONFIG.find(x => x.label === label);
+    return p ? p.colorClass : '';
+}
+
+function ensureAvailMap() {
+    monthAvailability = {};
+    PLAYER_CONFIG.forEach(p => {
+        monthAvailability[p.label] = {};
+    });
+}
+
+function renderEmptyGrid(container) {
+    if (!container) return;
+    const header = `
+      <div class="grid-row grid-header">
+        <div class="grid-cell day-cell">日期</div>
+        ${SEGMENTS.map(s => `<div class="grid-cell">${s.label}</div>`).join('')}
+      </div>
     `;
-    }).join('');
+    container.innerHTML = header + `<div class="grid-row"><div class="grid-cell" style="grid-column: 1 / span 5; color:#777;">加载中…</div></div>`;
 }
 
-// 刷新按钮
-document.getElementById('refreshBtn').addEventListener('click', () => {
-    loadTimes();
-    loadCommonTimes();
-});
-
-// 加载共同空闲时间
-async function loadCommonTimes() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/get-common-times/${DEFAULT_ROOM_CODE}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            displayCommonTimes(data.common_times);
-        }
-    } catch (error) {
-        console.error('计算共同空闲时间失败:', error);
-    }
-}
-
-// 显示共同空闲时间
-function displayCommonTimes(commonTimes) {
-    const commonTimesList = document.getElementById('commonTimesList');
-    
-    if (!commonTimes || commonTimes.length === 0) {
-        commonTimesList.innerHTML = '<p>暂无共同空闲时间</p>';
+async function fetchAndRenderMonth(monthGridEl, monthTitleEl) {
+    if (!currentNickname) {
+        // 未选择身份时不加载
         return;
     }
-    
-    commonTimesList.innerHTML = commonTimes.map(time => `
-        <div class="common-time-item">
-            ${time.date} ${time.start_time} ~ ${time.end_time}
-        </div>
-    `).join('');
+    renderMonthHeader(monthTitleEl);
+    renderEmptyGrid(monthGridEl);
+
+    try {
+        const url = `${API_BASE_URL}/availability/month?year=${currentYear}&month=${currentMonth}&room_code=${encodeURIComponent(DEFAULT_ROOM_CODE)}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (!data.success) {
+            throw new Error(data.error || '加载失败');
+        }
+
+        ensureAvailMap();
+        monthCommon = new Set();
+
+        // entries: [{nickname,date,segment,available}]
+        for (const e of (data.entries || [])) {
+            if (!monthAvailability[e.nickname]) {
+                monthAvailability[e.nickname] = {};
+            }
+            if (!monthAvailability[e.nickname][e.date]) {
+                monthAvailability[e.nickname][e.date] = {};
+            }
+            monthAvailability[e.nickname][e.date][e.segment] = e.available;
+        }
+
+        for (const c of (data.common || [])) {
+            monthCommon.add(`${c.date}|${c.segment}`);
+        }
+
+        renderMonthGrid(monthGridEl);
+        renderCommonList();
+    } catch (e) {
+        console.error(e);
+        if (monthGridEl) {
+            monthGridEl.innerHTML = `<div class="grid-row"><div class="grid-cell" style="grid-column: 1 / span 5; color:#d32f2f;">加载失败：${escapeHtml(String(e.message || e))}</div></div>`;
+        }
+    }
+}
+
+function renderMonthGrid(container) {
+    if (!container) return;
+    const dim = daysInMonth(currentYear, currentMonth);
+    const myColorClass = getPlayerColorClassByLabel(currentNickname);
+
+    const header = `
+      <div class="grid-row grid-header">
+        <div class="grid-cell day-cell">日期</div>
+        ${SEGMENTS.map(s => `<div class="grid-cell">${s.label}</div>`).join('')}
+      </div>
+    `;
+
+    let rowsHtml = '';
+    for (let day = 1; day <= dim; day++) {
+        const dateStr = formatDate(currentYear, currentMonth, day);
+        rowsHtml += `<div class="grid-row" data-date="${dateStr}">
+          <div class="grid-cell day-cell">${String(day).padStart(2, '0')}</div>
+          ${SEGMENTS.map(seg => renderSlotCell(dateStr, seg.key, myColorClass)).join('')}
+        </div>`;
+    }
+
+    container.innerHTML = header + rowsHtml;
+
+    // 绑定指针事件（拖拽涂色）
+    container.querySelectorAll('.slot-cell').forEach(cell => {
+        cell.addEventListener('pointerdown', onCellPointerDown);
+        cell.addEventListener('pointerenter', onCellPointerEnter);
+        cell.addEventListener('pointerup', onCellPointerUp);
+        cell.addEventListener('pointercancel', onCellPointerUp);
+    });
+
+    // 全局抬起，结束拖拽（避免指针跑出容器）
+    window.addEventListener('pointerup', stopPainting, { once: true });
+}
+
+function renderSlotCell(dateStr, segmentKey, myColorClass) {
+    const myAvail = (monthAvailability[currentNickname]?.[dateStr]?.[segmentKey] === 1);
+    const isCommon = monthCommon.has(`${dateStr}|${segmentKey}`);
+
+    // 其他人可用点
+    const dots = [];
+    for (const p of PLAYER_CONFIG) {
+        const avail = (monthAvailability[p.label]?.[dateStr]?.[segmentKey] === 1);
+        if (!avail) continue;
+        dots.push(`<span class="dot ${p.colorClass}" title="${p.label}"></span>`);
+    }
+
+    const cls = [
+        'grid-cell',
+        'slot-cell',
+        myAvail ? 'mine' : '',
+        myAvail ? myColorClass : '',
+        isCommon ? 'common' : '',
+    ].filter(Boolean).join(' ');
+
+    return `
+      <div class="${cls}"
+           data-date="${dateStr}"
+           data-segment="${segmentKey}">
+        <div class="dots">${dots.join('')}</div>
+      </div>
+    `;
+}
+
+function onCellPointerDown(e) {
+    if (!currentNickname) return;
+    const cell = e.currentTarget;
+    if (!(cell instanceof HTMLElement)) return;
+    e.preventDefault();
+    cell.setPointerCapture?.(e.pointerId);
+
+    const dateStr = cell.getAttribute('data-date');
+    const segmentKey = cell.getAttribute('data-segment');
+    if (!dateStr || !segmentKey) return;
+
+    const current = (monthAvailability[currentNickname]?.[dateStr]?.[segmentKey] === 1);
+    paintValue = current ? 0 : 1;
+    isPainting = true;
+
+    applyCellChange(dateStr, segmentKey, paintValue);
+}
+
+function onCellPointerEnter(e) {
+    if (!isPainting || !currentNickname) return;
+    const cell = e.currentTarget;
+    if (!(cell instanceof HTMLElement)) return;
+    const dateStr = cell.getAttribute('data-date');
+    const segmentKey = cell.getAttribute('data-segment');
+    if (!dateStr || !segmentKey) return;
+    applyCellChange(dateStr, segmentKey, paintValue);
+}
+
+function onCellPointerUp() {
+    stopPainting();
+}
+
+function stopPainting() {
+    isPainting = false;
+}
+
+function applyCellChange(dateStr, segmentKey, available) {
+    // 更新本地缓存
+    if (!monthAvailability[currentNickname]) monthAvailability[currentNickname] = {};
+    if (!monthAvailability[currentNickname][dateStr]) monthAvailability[currentNickname][dateStr] = {};
+    monthAvailability[currentNickname][dateStr][segmentKey] = available;
+
+    // 写入 pendingChanges（批量保存）
+    pendingChanges.set(`${dateStr}|${segmentKey}`, available);
+    scheduleFlush();
+
+    // 立即更新 UI（只更新这个 cell 的 class，不整表重绘）
+    const myColorClass = getPlayerColorClassByLabel(currentNickname);
+    const cell = document.querySelector(`.slot-cell[data-date="${cssEscape(dateStr)}"][data-segment="${cssEscape(segmentKey)}"]`);
+    if (cell) {
+        cell.classList.toggle('mine', available === 1);
+        // 清掉所有 player-* 再加当前
+        PLAYER_CONFIG.forEach(p => cell.classList.remove(p.colorClass));
+        if (available === 1) cell.classList.add(myColorClass);
+    }
+}
+
+function scheduleFlush() {
+    if (flushTimer) {
+        clearTimeout(flushTimer);
+    }
+    flushTimer = setTimeout(() => {
+        flushPendingChanges();
+    }, 400);
+}
+
+async function flushPendingChanges() {
+    flushTimer = null;
+    if (!currentNickname) return;
+    if (pendingChanges.size === 0) return;
+
+    const changes = [];
+    for (const [key, available] of pendingChanges.entries()) {
+        const [dateStr, segmentKey] = key.split('|');
+        changes.push({ date: dateStr, segment: segmentKey, available });
+    }
+    pendingChanges.clear();
+
+    try {
+        const resp = await fetch(`${API_BASE_URL}/availability/batch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                room_code: DEFAULT_ROOM_CODE,
+                nickname: currentNickname,
+                changes,
+            }),
+        });
+        const data = await resp.json();
+        if (!data.success) {
+            throw new Error(data.error || '保存失败');
+        }
+
+        // 保存成功后，刷新本月数据（更新共同空闲与他人点）
+        const monthTitle = document.getElementById('monthTitle');
+        const monthGrid = document.getElementById('monthGrid');
+        await fetchAndRenderMonth(monthGrid, monthTitle);
+    } catch (e) {
+        console.error(e);
+        alert(`保存失败：${e.message || e}`);
+    }
+}
+
+function renderCommonList() {
+    const commonEl = document.getElementById('commonTimesList');
+    if (!commonEl) return;
+    if (!monthCommon || monthCommon.size === 0) {
+        commonEl.innerHTML = '<p>本月暂无共同空闲格子</p>';
+        return;
+    }
+
+    // 生成可读列表：按日期分组
+    const byDate = new Map(); // date -> segments[]
+    for (const key of monthCommon.values()) {
+        const [d, seg] = key.split('|');
+        if (!byDate.has(d)) byDate.set(d, []);
+        byDate.get(d).push(seg);
+    }
+
+    const segLabel = (k) => (SEGMENTS.find(s => s.key === k)?.label || k);
+    const segTime = (k) => {
+        const s = SEGMENTS.find(x => x.key === k);
+        if (!s) return '';
+        return `${s.start}~${s.end}`;
+    };
+
+    const dates = Array.from(byDate.keys()).sort();
+    const html = dates.map(d => {
+        const segs = byDate.get(d);
+        segs.sort((a, b) => SEGMENTS.findIndex(s => s.key === a) - SEGMENTS.findIndex(s => s.key === b));
+        return `
+          <div class="common-time-item">
+            <strong>${d}</strong>
+            <div style="margin-top:6px;">
+              ${segs.map(s => `<span style="display:inline-block;margin-right:10px;">${segLabel(s)}（${segTime(s)}）</span>`).join('')}
+            </div>
+          </div>
+        `;
+    }).join('');
+
+    commonEl.innerHTML = html;
+}
+
+// --- utils ---
+function escapeHtml(str) {
+    return str
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
+function cssEscape(str) {
+    // 极简 escape：够用（date/segment 都是安全字符）
+    return str.replaceAll('"', '\\"');
 }

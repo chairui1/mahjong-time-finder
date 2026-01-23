@@ -174,31 +174,144 @@ button:hover {
     color: #2e7d32;
 }
 
-/* 时间段方块 */
-.time-slot-grid {
+/* 月份头部与提示 */
+.month-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.month-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.month-title {
+    min-width: 120px;
+    text-align: center;
+    font-weight: bold;
+    color: #333;
+}
+
+.grid-hint {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #666;
+}
+
+/* 图例 */
+.legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 8px;
+    gap: 10px 14px;
+    margin-top: 10px;
 }
 
-.time-slot {
-    flex: 1 1 100px;
-    text-align: center;
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background-color: #fff;
-    cursor: pointer;
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #444;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #999;
+    display: inline-block;
+}
+
+.legend-item.player-1 .legend-dot { background: #42a5f5; }
+.legend-item.player-2 .legend-dot { background: #66bb6a; }
+.legend-item.player-3 .legend-dot { background: #ffa726; }
+.legend-item.player-4 .legend-dot { background: #ab47bc; }
+.legend-item.common .legend-dot { background: #ffc107; }
+
+/* 整月网格：每行=一天，每列=四段 */
+.month-grid {
+    margin-top: 14px;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.grid-row {
+    display: grid;
+    grid-template-columns: 72px repeat(4, 1fr);
+    border-top: 1px solid #eee;
+}
+
+.grid-row:first-child {
+    border-top: none;
+}
+
+.grid-header {
+    background: #f7f7f7;
+    font-weight: bold;
+    color: #555;
+}
+
+.grid-cell {
+    padding: 10px 8px;
+    border-left: 1px solid #eee;
+    position: relative;
     user-select: none;
-    font-size: 14px;
+    touch-action: none; /* 允许 pointer 拖拽 */
 }
 
-.time-slot.selected {
-    background-color: #4CAF50;
-    color: #fff;
-    border-color: #388e3c;
+.grid-cell:first-child {
+    border-left: none;
 }
+
+.day-cell {
+    background: #fafafa;
+    font-weight: bold;
+    color: #555;
+}
+
+.slot-cell {
+    cursor: pointer;
+    transition: background-color 0.08s ease;
+}
+
+/* 当前玩家上色（用变量/类控制） */
+.slot-cell.mine.player-1 { background: rgba(66, 165, 245, 0.32); }
+.slot-cell.mine.player-2 { background: rgba(102, 187, 106, 0.32); }
+.slot-cell.mine.player-3 { background: rgba(255, 167, 38, 0.32); }
+.slot-cell.mine.player-4 { background: rgba(171, 71, 188, 0.32); }
+
+/* 共同空闲高亮（即使我没选也显示） */
+.slot-cell.common {
+    box-shadow: inset 0 0 0 2px rgba(255, 193, 7, 0.9);
+}
+
+/* 单元格内显示其他人的小点 */
+.dots {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    display: flex;
+    gap: 4px;
+}
+
+.dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #bbb;
+    opacity: 0.9;
+}
+
+.dot.player-1 { background: #42a5f5; }
+.dot.player-2 { background: #66bb6a; }
+.dot.player-3 { background: #ffa726; }
+.dot.player-4 { background: #ab47bc; }
 
 /* 不同玩家的颜色（用于“已提交的时间”列表） */
 .time-item.player-1 {

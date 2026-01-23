@@ -132,3 +132,87 @@ button:hover {
     border-radius: 4px;
     font-weight: bold;
 }
+
+/* 身份选择 */
+.identity-note {
+    font-size: 13px;
+    color: #777;
+    margin-bottom: 10px;
+}
+
+.identity-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.identity-button {
+    flex: 1 1 100px;
+    padding: 10px 14px;
+    background-color: #f7f7f7;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+}
+
+.identity-button.selected {
+    background-color: #4CAF50;
+    color: #fff;
+    border-color: #388e3c;
+}
+
+.current-player {
+    margin-bottom: 10px;
+    color: #555;
+}
+
+.current-player-name {
+    font-weight: bold;
+    color: #2e7d32;
+}
+
+/* 时间段方块 */
+.time-slot-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.time-slot {
+    flex: 1 1 100px;
+    text-align: center;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+    cursor: pointer;
+    user-select: none;
+    font-size: 14px;
+}
+
+.time-slot.selected {
+    background-color: #4CAF50;
+    color: #fff;
+    border-color: #388e3c;
+}
+
+/* 不同玩家的颜色（用于“已提交的时间”列表） */
+.time-item.player-1 {
+    border-left-color: #42a5f5;
+}
+
+.time-item.player-2 {
+    border-left-color: #66bb6a;
+}
+
+.time-item.player-3 {
+    border-left-color: #ffa726;
+}
+
+.time-item.player-4 {
+    border-left-color: #ab47bc;
+}

@@ -24,37 +24,35 @@
         
         <!-- 提交时间表单 -->
         <div class="section" id="timeSection" style="display: none;">
-            <h2>提交我的空闲时间</h2>
-            <p class="current-player">当前身份：<span id="currentNicknameDisplay" class="current-player-name">未选择</span></p>
-            <form id="timeForm">
-                <div class="form-group">
-                    <label>日期：</label>
-                    <input type="date" id="date" required>
+            <div class="month-header">
+                <div class="month-left">
+                    <h2>选择空闲时间</h2>
+                    <p class="current-player">当前身份：<span id="currentNicknameDisplay" class="current-player-name">未选择</span></p>
                 </div>
-                <div class="form-group">
-                    <label>时间段：</label>
-                    <div class="time-slot-grid">
-                        <div class="time-slot" data-segment="morning">上午</div>
-                        <div class="time-slot" data-segment="noon">中午</div>
-                        <div class="time-slot" data-segment="afternoon">下午</div>
-                        <div class="time-slot" data-segment="evening">晚上</div>
-                    </div>
+                <div class="month-controls">
+                    <button type="button" id="prevMonthBtn">上个月</button>
+                    <div class="month-title" id="monthTitle">----</div>
+                    <button type="button" id="nextMonthBtn">下个月</button>
                 </div>
-                <button type="submit">提交时间</button>
-            </form>
+            </div>
+
+            <div class="legend">
+                <div class="legend-item player-1"><span class="legend-dot"></span>玩家 1</div>
+                <div class="legend-item player-2"><span class="legend-dot"></span>玩家 2</div>
+                <div class="legend-item player-3"><span class="legend-dot"></span>玩家 3</div>
+                <div class="legend-item player-4"><span class="legend-dot"></span>玩家 4</div>
+                <div class="legend-item common"><span class="legend-dot"></span>共同空闲</div>
+            </div>
+
+            <div class="month-grid" id="monthGrid">
+                <!-- JS 渲染：每行=一天，每列=上午/中午/下午/晚上 -->
+            </div>
         </div>
         
-        <!-- 已提交的时间列表 -->
+        <!-- 共同空闲时间（列表展示，便于一眼看懂） -->
         <div class="section">
-            <h2>已提交的时间</h2>
-            <button id="refreshBtn">刷新</button>
-            <div id="timesList">加载中...</div>
-        </div>
-        
-        <!-- 共同空闲时间 -->
-        <div class="section">
-            <h2>共同空闲时间</h2>
-            <div id="commonTimesList">暂无数据</div>
+            <h2>共同空闲时间（本月）</h2>
+            <div id="commonTimesList">请先选择身份</div>
         </div>
     </div>
     
